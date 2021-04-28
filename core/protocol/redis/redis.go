@@ -1,17 +1,17 @@
 package redis
 
 import (
-	"net"
-	"bufio"
-	"strings"
-	"strconv"
-	"HFish/utils/try"
-	"HFish/core/report"
-	"HFish/utils/log"
-	"HFish/utils/is"
-	"HFish/core/rpc/client"
-	"fmt"
 	"HFish/core/pool"
+	"HFish/core/report"
+	"HFish/core/rpc/client"
+	"HFish/utils/is"
+	"HFish/utils/log"
+	"HFish/utils/try"
+	"bufio"
+	"fmt"
+	"net"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -69,16 +69,34 @@ func handleConnection(conn net.Conn, id string) {
 
 		switch value := str.(type) {
 		case string:
-			if is.Rpc() {
-				go client.ReportResult("REDIS", "", "", "&&"+str.(string), id)
-			} else {
-				go report.ReportUpdateRedis(id, "&&"+str.(string))
-			}
+			if value == "INFO" || value == "info" {
+				try.Try(func() {
+					// 模拟 redis info
+					redis_info := "$3312\r\n# Server\r\nredis_version:5.0.10\r\nredis_git_sha1:1c047b68\r\nredis_git_dirty:0\r\nredis_build_id:76de97c74f6945e9\r\nredis_mode:standalone\r\nos:Windows  \r\narch_bits:64\r\nmultiplexing_api:WinSock_IOCP\r\natomicvar_api:pthread-mutex\r\nprocess_id:17932\r\nrun_id:2e5854c121c940595d66fe178e28505ad3dec02e\r\ntcp_port:6379\r\nuptime_in_seconds:41\r\nuptime_in_days:0\r\nhz:10\r\nconfigured_hz:10\r\nlru_clock:9004067\r\nexecutable:C:\\Users\\FigoHu\\Desktop\\fsdownload\\Redis-x64-5.0.10\\redis-server.exe\r\nconfig_file:C:\\Users\\FigoHu\\Desktop\\fsdownload\\Redis-x64-5.0.10\\redis.windows.conf\r\n\r\n# Clients\r\nconnected_clients:1\r\nclient_recent_max_input_buffer:0\r\nclient_recent_max_output_buffer:0\r\nblocked_clients:0\r\n\r\n# Memory\r\nused_memory:723568\r\nused_memory_human:706.61K\r\nused_memory_rss:660408\r\nused_memory_rss_human:644.93K\r\nused_memory_peak:723568\r\nused_memory_peak_human:706.61K\r\nused_memory_peak_perc:109.56%\r\nused_memory_overhead:710358\r\nused_memory_startup:660408\r\nused_memory_dataset:13210\r\nused_memory_dataset_perc:20.92%\r\nallocator_allocated:33272"
 
-			if len(value) == 0 {
-				goto end
+					if is.Rpc() {
+						go client.ReportResult("REDIS", "", "", "&& "+value, id)
+					} else {
+						go report.ReportUpdateRedis(id, "&& "+value)
+					}
+
+					conn.Write([]byte(redis_info))
+				}).Catch(func() {
+					conn.Write([]byte("+OK\r\n"))
+				})
+			} else {
+				if is.Rpc() {
+					go client.ReportResult("REDIS", "", "", "&&"+str.(string), id)
+				} else {
+					go report.ReportUpdateRedis(id, "&&"+str.(string))
+				}
+
+				if len(value) == 0 {
+					goto end
+				}
+				conn.Write([]byte(value))
 			}
-			conn.Write([]byte(value))
+			break
 		case []string:
 			if value[0] == "SET" || value[0] == "set" {
 				// 模拟 redis set
@@ -118,22 +136,15 @@ func handleConnection(conn net.Conn, id string) {
 				}).Catch(func() {
 					conn.Write([]byte("+OK\r\n"))
 				})
-			} else if value[0] == "info" {
-				try.Try(func() {
-					// 模拟 redis info
-					redis_info := "$3312\r\n# Server\r\nredis_version:5.0.10\r\nredis_git_sha1:1c047b68\r\nredis_git_dirty:0\r\nredis_build_id:76de97c74f6945e9\r\nredis_mode:standalone\r\nos:Windows  \r\narch_bits:64\r\nmultiplexing_api:WinSock_IOCP\r\natomicvar_api:pthread-mutex\r\nprocess_id:17932\r\nrun_id:2e5854c121c940595d66fe178e28505ad3dec02e\r\ntcp_port:6379\r\nuptime_in_seconds:41\r\nuptime_in_days:0\r\nhz:10\r\nconfigured_hz:10\r\nlru_clock:9004067\r\nexecutable:C:\\Users\\FigoHu\\Desktop\\fsdownload\\Redis-x64-5.0.10\\redis-server.exe\r\nconfig_file:C:\\Users\\FigoHu\\Desktop\\fsdownload\\Redis-x64-5.0.10\\redis.windows.conf\r\n\r\n# Clients\r\nconnected_clients:1\r\nclient_recent_max_input_buffer:0\r\nclient_recent_max_output_buffer:0\r\nblocked_clients:0\r\n\r\n# Memory\r\nused_memory:723568\r\nused_memory_human:706.61K\r\nused_memory_rss:660408\r\nused_memory_rss_human:644.93K\r\nused_memory_peak:723568\r\nused_memory_peak_human:706.61K\r\nused_memory_peak_perc:109.56%\r\nused_memory_overhead:710358\r\nused_memory_startup:660408\r\nused_memory_dataset:13210\r\nused_memory_dataset_perc:20.92%\r\nallocator_allocated:33272"
-							
-					if is.Rpc() {
-						go client.ReportResult("REDIS", "", "", "&&"+value[0]+" "+value[1], id)
-					} else {
-						go report.ReportUpdateRedis(id, "&&"+value[0]+" "+value[1])
-					}
-					
-					conn.Write([]byte(redis_info))
-				}).Catch(func() {
-					conn.Write([]byte("+OK\r\n"))
-				})
-			} else {
+			} else if value[0] == "AUTH" || value[0] == "auth" {
+				invalid_passwd := "-ERR invalid password\r\n"
+				if is.Rpc() {
+					go client.ReportResult("REDIS", "", "", "&&"+value[0]+" "+value[1], id)
+				} else {
+					go report.ReportUpdateRedis(id, "&&"+value[0]+" "+value[1])
+				}
+				conn.Write([]byte(invalid_passwd))
+			}else {
 				try.Try(func() {
 					if is.Rpc() {
 						go client.ReportResult("REDIS", "", "", "&&"+value[0]+" "+value[1], id)
@@ -152,6 +163,7 @@ func handleConnection(conn net.Conn, id string) {
 			}
 			break
 		default:
+			break
 
 		}
 	}
@@ -194,6 +206,6 @@ func parseRESP(conn net.Conn) interface{} {
 		}
 		return data
 	default:
-		return cmdTxt
+		return strings.Trim(string(line[0:]), "\r\n")
 	}
 }
